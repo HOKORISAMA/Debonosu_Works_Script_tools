@@ -86,9 +86,9 @@ def main():
     """
     Main function to update byte lengths in JSON files and process SCB files in the specified folder.
     """
-    json_folder_path = 'translatable_files'  # Replace with the path to your folder containing JSON files
-    scb_folder_path = 'input_scb_files'  # Replace with the path to your folder containing SCB files
-    output_folder_path = 'new_scb_files'  # Replace with the path to your output folder
+    json_folder_path = 'translatable_files'  
+    scb_folder_path = 'input_scb_files'  
+    output_folder_path = 'new_scb_files'  
 
     for file_name in os.listdir(json_folder_path):
         if file_name.endswith('.json'):
