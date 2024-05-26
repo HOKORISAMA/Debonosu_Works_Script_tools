@@ -1,4 +1,4 @@
-Some tools to translate Debnosu_works games.
+Some tools to translate **Debnosu_works** or **Debo no Su Seisakusho** games.
 Still have many bugs.
 
 ### HOW TO USE
