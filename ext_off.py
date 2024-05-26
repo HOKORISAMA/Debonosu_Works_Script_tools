@@ -48,13 +48,13 @@ def process_files(input_folder, output_folder):
         if filename.endswith('.scb'):
             scb_file_path = os.path.join(input_folder, filename)
             json_file_path = os.path.join(input_folder, f"{os.path.splitext(filename)[0]}.scb.json")
-            output_file_path = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}.off.json")
+            output_file_path = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}.json")
             scb_lines = read_scb_file(scb_file_path)
             search_terms = read_json_file(json_file_path)
             results = search_and_extract(scb_lines, search_terms)
             write_results_to_json(results, output_file_path)
 
 if __name__ == "__main__":
-    input_folder = 'input_folder'
-    output_folder = 'output_folder'
+    input_folder = 'input_SE_json_files'
+    output_folder = 'translatable_files'
     process_files(input_folder, output_folder)
