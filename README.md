@@ -3,7 +3,7 @@ Still have many bugs.
 
 ### HOW TO USE
 
-**Method 1** **(Suggested method)**
+**Method 1** **(Recommended method)**
 1. Use [SExtractor](https://github.com/satan53x/SExtractor) to extract the text from scb files by selecting `BIN VIOLENT` in format `name: message` with `Multiple files mode`.
 2. Now put those files in any `input_SE_json_files` and run `ext_off.py` that will give you the files need to translate in `translatable_files`.
 3. Translate the `TL Key` (Warning: do not change anything else) and now you can run the `cr_scb.py` to get new files.
