@@ -15,5 +15,5 @@ Method 2
 4. Translate the text in `TL key` (DO NOT TOUCH ANYTHING ELSE).
 5. When translation is done run `cr_scb.py`, You'll get the new files in `new_scb_files` folder.
 
-##This game engine can read the files from folders so no need to repack files back.
+### Debonosu works game engine supports reading of file form folder so no need to repack files.
 
