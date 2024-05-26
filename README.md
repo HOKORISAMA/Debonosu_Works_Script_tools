@@ -17,3 +17,5 @@ Method 2
 
 ### Debonosu works game engine supports reading of file from folders so no need to repack files.
 
+
+### Tested on [Kagura Shinpuuki ~Mikuru no Shou~ / 神楽新風記～みくるの章～]([url](https://vndb.org/v49338))
