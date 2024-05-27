@@ -10,7 +10,7 @@ Still have many bugs.
 3. Translate the `TL Key` (Warning: do not change anything else) and now you can run the `cr_scb.py` to get new files.
 
 Method 2
-1. Can only be used on unencrytped games for now.
+1. Can only be used on unencrytped games for now (I haven't found any encrypted one yet).
 2. Use Garbro to extract the game.pak that will give you some .scb files in a script folder.
 3. Copy those files in the `input_scb_files`(Only script files like 01.scb 011a.scb or H011.scb not battle.scb or like that) folder now run `ext_scb.py` that will give you json files in `translatable_files` folder.
 4. Translate the text in `TL key` (DO NOT TOUCH ANYTHING ELSE).
