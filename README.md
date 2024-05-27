@@ -6,7 +6,7 @@ Still have many bugs.
 **Method 1** **(Recommended method)**
 1. Use Garbro to extract the game.pak file and from the script folder copy the scb files the any folder.
 1. Use [SExtractor](https://github.com/satan53x/SExtractor) to extract the text from scb files by selecting `BIN VIOLENT` in format `name: message` with `Multiple files mode`.
-2. Now put those files in `input_SE_json_files` and run `ext_off.py` that will give you the files need to translate in `translatable_files`.
+2. Now put those json files you extrated with SE in `input_SE_json_files` and run `ext_off.py` that will give you the files need to translate in `translatable_files`.
 3. Translate the `TL Key` (Warning: do not change anything else) and now you can run the `cr_scb.py` to get new files.
 
 Method 2
