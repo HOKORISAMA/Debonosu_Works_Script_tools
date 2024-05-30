@@ -20,4 +20,4 @@ Method 2
 
 
 ### Tested on [Kagura Shinpuuki ～Mikuru no Shou～ / 神楽新風記～みくるの章～]([url](https://vndb.org/v49338)) and [	神楽凌艶譚～沙耶の章～/Kagura Ryouentan ~Saya no Shou~
-](https://vndb.org/v49351)
+]([url](https://vndb.org/v49351))
