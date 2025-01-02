@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from enum import Enum
 import logging
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 class Mode(Enum):
     EXTRACT = 'extract'
@@ -11,8 +11,16 @@ class Mode(Enum):
 
 class StringTool:
     def __init__(self, encoding='cp932'):
+        """
+        A tool for extracting and replacing strings in .scb binary files,
+        based on a known pattern:
+         - Byte 0: 0x04
+         - Byte 1: length_of_string (including null terminator)
+         - Bytes 2..4: \x00\x00\x00
+         - Followed by <string_data>\0
+        """
         self.encoding = encoding
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         
         # Define fixed directories
         self.input_dir = Path('input_files')
@@ -23,127 +31,152 @@ class StringTool:
         self.json_dir.mkdir(exist_ok=True)
         self.output_dir.mkdir(exist_ok=True)
         
-    def _find_string_pattern(self, data: bytes, pos: int) -> tuple[bool, int, int, int]:
+    def _find_string_pattern(self, data: bytes, offset: int) -> Tuple[bool, int, int, int]:
         """
-        Find the next valid string pattern in binary data.
-        Returns (is_valid, string_length, string_start, string_end)
+        Find the next valid string pattern in binary data at 'offset'.
+        Returns (is_valid, string_length, string_start, string_end).
+        
+        * is_valid: boolean indicating if a valid pattern is found
+        * string_length: the length byte stored in data[offset+1], i.e. expected length
+        * string_start: index in 'data' where the string itself starts
+        * string_end: index in 'data' where the null terminator was found (excluded from substring)
         """
-        if (pos + 5 >= len(data) or 
-            data[pos] != 0x04 or 
-            data[pos + 2:pos + 5] != b'\x00\x00\x00'):
+        # Ensure we don't read past end
+        if offset + 5 >= len(data):
+            return False, 0, 0, 0
+        
+        # Check pattern 0x04, 0x00 0x00 0x00 at right positions
+        if data[offset] != 0x04 or data[offset+2:offset+5] != b'\x00\x00\x00':
             return False, 0, 0, 0
             
-        specified_length = data[pos + 1]
-        str_start = pos + 5
+        specified_length = data[offset+1]  # includes null terminator
+        str_start = offset + 5
         str_end = str_start
         
+        # Find the null terminator
         while str_end < len(data) and data[str_end] != 0:
             str_end += 1
             
-        actual_length = str_end - str_start + 1
+        actual_length = (str_end - str_start) + 1  # +1 for the null terminator
+        
         if actual_length != specified_length:
             return False, 0, 0, 0
             
         return True, specified_length, str_start, str_end
 
     def extract_strings(self, binary_file_path: Path) -> List[Dict[str, str]]:
-        """Extract strings from binary file."""
-        extracted_strings = []
+        """
+        Extract strings from binary file using the known pattern.
+        Returns a list of dicts like [{'orig': '...', 'trans': '...'}, ...].
+        """
+        data = binary_file_path.read_bytes()
+        results = []
+        offset = 0
         
-        with open(binary_file_path, 'rb') as f:
-            data = f.read()
-        
-        pos = 0
-        while pos < len(data):
-            is_valid, length, str_start, str_end = self._find_string_pattern(data, pos)
-            
-            if is_valid:
+        while offset < len(data):
+            valid, length, str_start, str_end = self._find_string_pattern(data, offset)
+            if valid:
                 try:
+                    # decode the string (excluding the null terminator)
                     original_str = data[str_start:str_end].decode(self.encoding)
-                    extracted_strings.append({
-                        'orig': original_str,
-                        'trans': original_str
-                    })
-                    pos = str_end + 1
+                    results.append({'orig': original_str, 'trans': original_str})
+                    offset = str_end + 1  # skip past the null terminator
                     continue
                 except UnicodeDecodeError:
-                    self.logger.warning(f"Failed to decode string at position {str_start}")
-                    
-            pos += 1
-            
-        return extracted_strings
+                    self.logger.warning(f"Failed to decode string at offset {str_start}.")
+            offset += 1
+        
+        return results
 
-    def replace_strings(self, binary_file_path: Path, translations: List[Dict[str, str]], 
-                       output_file_path: Path) -> None:
+    def replace_strings(self,
+                        binary_file_path: Path,
+                        translations: List[Dict[str, str]],
+                        output_file_path: Path) -> None:
         """
-        Replace strings in binary file with translations, maintaining original order.
-        Only replaces each string once in the order they appear in the translations list.
+        Replace strings in 'binary_file_path' with corresponding translations (in order).
+        Writes result to 'output_file_path'.
+        Raises a warning if not all translations are used or if the new strings exceed
+        the original pattern's length.
         """
-        with open(binary_file_path, 'rb') as f:
-            data = bytearray(f.read())
+        data = bytearray(binary_file_path.read_bytes())
+        offset = 0
+        trans_index = 0
         
-        pos = 0
-        trans_index = 0  # Keep track of which translation we're currently looking for
-        
-        while pos < len(data) and trans_index < len(translations):
-            is_valid, orig_length, str_start, str_end = self._find_string_pattern(data, pos)
-            
-            if is_valid:
+        while offset < len(data) and trans_index < len(translations):
+            valid, old_len, str_start, str_end = self._find_string_pattern(data, offset)
+            if valid:
+                old_str = None
                 try:
-                    orig_str = data[str_start:str_end].decode(self.encoding)
-                    
-                    # Only check against the current translation in sequence
-                    trans_entry = translations[trans_index]
-                    if trans_entry['orig'] == orig_str:
-                        new_str = trans_entry['trans'].encode(self.encoding)
-                        new_length = len(new_str) + 1
-                        
-                        data[pos + 1] = new_length
-                        data[str_start:str_end] = new_str
-                        pos = str_start + new_length
-                        trans_index += 1  # Move to next translation
-                        continue
-                    
+                    old_str = data[str_start:str_end].decode(self.encoding)
                 except UnicodeDecodeError:
-                    self.logger.warning(f"Failed to decode/encode string at position {str_start}")
-            
-            pos += 1
+                    self.logger.warning(f"Failed to decode original string at offset {str_start}.")
+                
+                if old_str is not None:
+                    trans_entry = translations[trans_index]
+                    if trans_entry['orig'] == old_str:
+                        # Prepare the new string
+                        new_bytes = trans_entry['trans'].encode(self.encoding)
+                        new_len = len(new_bytes) + 1  # account for null terminator
+                        
+                        # Check if new length exceeds old length
+                        if new_len > old_len:
+                            self.logger.warning(
+                                f"New string length ({new_len}) exceeds old length ({old_len}). "
+                                f"Possible data corruption at offset {offset}."
+                            )
+                            
+                        # Rewrite length byte
+                        data[offset + 1] = new_len
+                        # Overwrite with new bytes
+                        data[str_start:str_end] = new_bytes
+                        
+                        # Move offset forward
+                        offset = str_start + new_len
+                        trans_index += 1
+                        continue
+            offset += 1
         
+        # Check if all translations were used
         if trans_index < len(translations):
-            self.logger.warning(f"Not all translations were applied. {len(translations) - trans_index} translations remaining.")
+            self.logger.warning(
+                f"Not all translations were applied. {len(translations) - trans_index} remaining."
+            )
         
-        with open(output_file_path, 'wb') as f:
-            f.write(data)
+        output_file_path.write_bytes(data)
 
     def process_files(self, mode: Mode) -> None:
-        """Process all files according to specified mode."""
+        """
+        Process all .scb files in 'input_files' directory.
+        If mode=EXTRACT, create JSON files in 'json_files'.
+        If mode=REPLACE, read JSON from 'json_files' and write modified .scb to 'output_files'.
+        """
         if mode == Mode.EXTRACT:
             for file_path in self.input_dir.glob('**/*.scb'):
                 try:
                     strings = self.extract_strings(file_path)
                     if strings:
                         json_path = self.json_dir / f"{file_path.stem}.json"
-                        with open(json_path, 'w', encoding='utf-8') as f:
+                        with json_path.open('w', encoding='utf-8') as f:
                             json.dump(strings, f, indent=4, ensure_ascii=False)
-                        self.logger.info(f"Processed {file_path.name}: {len(strings)} strings found")
+                        self.logger.info(f"Extracted {len(strings)} strings from {file_path.name}")
                 except Exception as e:
-                    self.logger.error(f"Error processing {file_path}: {e}")
-                    
-        elif mode == Mode.REPLACE:
+                    self.logger.error(f"Error extracting from {file_path}: {e}")
+        else:  # Mode.REPLACE
             for json_path in self.json_dir.glob('*.json'):
                 try:
                     binary_path = self.input_dir / f"{json_path.stem}.scb"
-                    if binary_path.exists():
-                        with open(json_path, 'r', encoding='utf-8') as f:
-                            translations = json.load(f)
-                        
-                        output_file = self.output_dir / binary_path.name
-                        self.replace_strings(binary_path, translations, output_file)
-                        self.logger.info(f"Applied translations to {binary_path.name}")
-                    else:
-                        self.logger.warning(f"No matching binary file found for {json_path.stem}")
+                    if not binary_path.exists():
+                        self.logger.warning(f"No matching binary found for {json_path.stem}.")
+                        continue
+                    with json_path.open('r', encoding='utf-8') as f:
+                        translations = json.load(f)
+                    
+                    output_file = self.output_dir / binary_path.name
+                    self.replace_strings(binary_path, translations, output_file)
+                    self.logger.info(f"Replaced strings in {binary_path.name}")
                 except Exception as e:
-                    self.logger.error(f"Error processing {json_path}: {e}")
+                    self.logger.error(f"Error replacing from {json_path}: {e}")
+
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -154,13 +187,11 @@ def main():
     
     while True:
         choice = input("Enter choice (1 or 2): ").strip()
-        if choice == '1':
-            mode = Mode.EXTRACT
-            break
-        elif choice == '2':
-            mode = Mode.REPLACE
+        if choice in ('1', '2'):
             break
         print("Invalid choice. Please enter 1 or 2.")
+    
+    mode = Mode.EXTRACT if choice == '1' else Mode.REPLACE
     
     tool = StringTool()
     try:
@@ -171,3 +202,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
